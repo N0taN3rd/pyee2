@@ -1,0 +1,6 @@
+pytest
+pytest-asyncio
+black
+git+https://github.com/python/mypy.git
+flake8
+mock
