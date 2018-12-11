@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -
 import asyncio
-from asyncio import AbstractEventLoop
-from collections import defaultdict, OrderedDict
-from typing import Dict, Callable, DefaultDict, Any, Optional, List
+import inspect
+from asyncio import AbstractEventLoop, Future
+from collections import OrderedDict
+from typing import Dict, Callable, Any, Optional, List
 
 __all__ = ["EventEmitter"]
 
@@ -10,8 +10,13 @@ __all__ = ["EventEmitter"]
 class EventEmitter(object):
     """EventEmitter implementation like primus/eventemitter3 (Nodejs).
 
-    We do not raise or emit an error event when your listener raises an error.
-    Only supports regular or asyncio coroutine event listeners.
+    We do not raise or emit an error event when your listener raises an error
+    and no one is listening for the "error" event; that is to say
+    we swallow (catch) all errors raised.
+    We also do not emit an event when a new listener is added.
+    Only supports regular function or functions that return awaitables
+    (coroutine, future, task) event listeners.
+    The test for awaitableness is done via "inspect.isawaitable"
     """
 
     def __init__(self, loop: Optional[AbstractEventLoop] = None) -> None:
@@ -20,28 +25,39 @@ class EventEmitter(object):
         :param loop: Optional loop argument. Defaults to asyncio.get_event_loop()
         :type loop: AbstractEventLoop
         """
-        self._loop: AbstractEventLoop = loop if loop is not None else asyncio.get_event_loop()
-        self._events: DefaultDict[
-            str, Dict[Callable[..., Any], Callable[..., Any]]
-        ] = defaultdict(OrderedDict)
+        self.loop: AbstractEventLoop = loop if loop is not None else asyncio.get_event_loop()
+        self._events: Dict[str, Dict[Callable[..., Any], Callable[..., Any]]] = dict()
 
-    def emit(self, event: str, *args: Any, **kwargs: Any) -> None:
+    def emit(self, event: str, *args: Any, **kwargs: Any) -> bool:
         """Emit an event, passing any args and kwargs to the registered listeners.
 
-        If the registered listener for an event is a coroutine, the coroutine is scheduled using asyncio.ensure_future
+        If the registered listener for an event returns an awaitable, the awaitable is scheduled
+        using asyncio.ensure_future
 
         :param event: The event to call listens for
         :param args: Arguments to pass to the listeners for the event
         :param kwargs: Keyword arguments to pass to the listeners for the event
         """
-        for f in list(self._events[event].values()):
+        listeners = self._events.get(event)
+        if listeners is None:
+            return False
+        listening_for_exceptions = "error" in self._events
+        for f in list(listeners.values()):
             try:
                 result = f(*args, **kwargs)
-            except Exception:
-                continue
+                if inspect.isawaitable(result):
+                    future = asyncio.ensure_future(result, loop=self.loop)
+                    if listening_for_exceptions:
+                        future.add_done_callback(self._maybe_emit_error)
+            except Exception as e:
+                if listening_for_exceptions:
+                    self.emit("error", e)
+        return True
 
-            if asyncio.iscoroutine(result):
-                asyncio.ensure_future(result, loop=self._loop)
+    def _maybe_emit_error(self, the_future: Future) -> None:
+        raised_exception = the_future.exception()
+        if raised_exception:
+            self.emit("error", raised_exception)
 
     def on(
         self, event: str, listener: Optional[Callable[..., Any]] = None
@@ -57,11 +73,11 @@ class EventEmitter(object):
         if listener is None:
 
             def _on(f: Callable[..., Any]) -> Callable[..., Any]:
-                self._events[event][f] = f
+                self._add_listener(event, f, f)
                 return f
 
             return _on
-        self._events[event][listener] = listener
+        self._add_listener(event, listener, listener)
         return listener
 
     def once(
@@ -77,11 +93,11 @@ class EventEmitter(object):
         """
 
         def _wrapper(f: Callable[..., Any]) -> Callable[..., Any]:
-            def g(*args: Any, **kwargs: Any) -> Any:
+            def wrapped_once_listener(*args: Any, **kwargs: Any) -> Any:
                 self.remove_listener(event, f)
                 return f(*args, **kwargs)
 
-            self._events[event][f] = g
+            self._add_listener(event, f, wrapped_once_listener)
             return f
 
         if listener is None:
@@ -89,13 +105,28 @@ class EventEmitter(object):
         else:
             return _wrapper(listener)
 
+    def _add_listener(
+        self,
+        event: str,
+        original_listener: Callable[..., Any],
+        maybe_wrapped_listener: Callable[..., Any],
+    ) -> None:
+        ldict = self._events.get(event)
+        if ldict is None:
+            self._events[event] = ldict = OrderedDict()
+        ldict[original_listener] = maybe_wrapped_listener
+
     def remove_listener(self, event: str, listener: Callable[..., Any]) -> None:
         """Remove a listener registered for a event
 
         :param event: The event that has the supplied `listener` register
         :param listener: The registered listener to be removed
         """
-        self._events[event].pop(listener)
+        ldict = self._events.get(event, None)
+        if ldict is not None:
+            ldict.pop(listener, None)
+            if len(ldict) == 0:
+                del self._events[event]
 
     def remove_all_listeners(self, event: Optional[str] = None) -> None:
         """Removes all listeners registered to an event.
@@ -105,9 +136,9 @@ class EventEmitter(object):
         :param event: Optional event to remove listeners for
         """
         if event is not None:
-            self._events[event] = OrderedDict()
+            self._events.pop(event, None)
         else:
-            self._events = defaultdict(OrderedDict)
+            self._events.clear()
 
     def listeners(self, event: str) -> List[Callable[..., Any]]:
         """Retrieve the list of listeners registered for a event
@@ -115,7 +146,10 @@ class EventEmitter(object):
         :param event: The event to retrieve its listeners for
         :return: List of listeners registered for the event
         """
-        return list(self._events[event].keys())
+        ldict = self._events.get(event, None)
+        if ldict is not None:
+            return list(ldict.keys())
+        return list()
 
     def event_names(self) -> List[str]:
         """Retrieve a list of event names that are registered to this EventEmitter
@@ -123,3 +157,14 @@ class EventEmitter(object):
         :return: The list of registered event names
         """
         return list(self._events.keys())
+
+    def listener_count(self, event: str) -> int:
+        """Returns the number of listeners for an event.
+
+        :param event: The event name
+        :return: The number of listeners for the event
+        """
+        listeners = self._events.get(event)
+        if listeners is None:
+            return 0
+        return len(listeners)

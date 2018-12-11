@@ -22,6 +22,7 @@ setup(
     name="pyee2",
     version=find_version(),
     packages=['pyee2'],
+    license="MIT",
     author="John Berlin",
     author_email="n0tan3rd@gmail.com",
     description="A port of node.js's primus/eventemitter3 to python. Based on jfhbrook/pyee.",
