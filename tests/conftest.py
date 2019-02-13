@@ -1,5 +1,5 @@
 from asyncio import AbstractEventLoop, Future, gather
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 import pytest
 from mock import Mock
@@ -25,6 +25,14 @@ def ee_with_event_loop(event_loop: AbstractEventLoop) -> EventEmitter:
 @pytest.fixture
 def deferred(event_loop: AbstractEventLoop) -> Future:
     return event_loop.create_future()
+
+
+@pytest.fixture
+def arg_swallower() -> Callable[..., None]:
+    def swallower(*args, **kwargs) -> None:
+        return None
+
+    return swallower
 
 
 class EEExceptionHelper(object):

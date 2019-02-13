@@ -1,26 +1,74 @@
 from asyncio import AbstractEventLoop, Future
-
+from typing import Callable, TYPE_CHECKING
 import pytest
 from mock import Mock
 
 from pyee2 import EventEmitter
 
+if TYPE_CHECKING:
+    from .conftest import EEExceptionHelper
+
+
+def test_get_listeners_registered_for_event(
+    ee: EventEmitter, arg_swallower: Callable[..., None]
+) -> None:
+    ee.on("event", arg_swallower)
+    ee_listeners = ee.listeners("event")
+    assert len(ee_listeners) == 1
+    assert ee_listeners[0] is arg_swallower
+
+
+def test_remove_listener_registered_for_event(
+    ee: EventEmitter, arg_swallower: Callable[..., None]
+) -> None:
+    ee.on("event", arg_swallower)
+    assert ee.listener_count("event") == 1
+    assert arg_swallower is ee.listeners("event")[0]
+    ee.remove_listener("event", arg_swallower)
+    assert ee.listener_count("event") == 0
+
+
+def test_remove_all_listeners_registered_for_event(
+    ee: EventEmitter, arg_swallower: Callable[..., None]
+) -> None:
+    ee.on("event", arg_swallower)
+    assert ee.listener_count("event") == 1
+    assert arg_swallower is ee.listeners("event")[0]
+    ee.remove_all_listeners("event")
+    assert ee.listener_count("event") == 0
+
+
+def test_remove_all_listeners(
+    ee: EventEmitter, arg_swallower: Callable[..., None]
+) -> None:
+    ee.on("event", arg_swallower)
+    assert ee.listener_count("event") == 1
+    assert arg_swallower is ee.listeners("event")[0]
+    ee.remove_all_listeners()
+    assert ee.listener_count("event") == 0
+
+
+def test_get_event_names(ee: EventEmitter, arg_swallower: Callable[..., None]) -> None:
+    events = {"event", "event1", "event2", "event3"}
+    for event in events:
+        ee.on(event, arg_swallower)
+    assert all(
+        registered_event_name in events for registered_event_name in ee.event_names()
+    )
+
 
 def test_on(ee: EventEmitter, mock: Mock) -> None:
     ee.on("event", mock.method)
-
     assert ee.listener_count("event") == 1
     assert mock.method is ee.listeners("event")[0]
     assert ee.emit("event", 1, data=2)
-
     mock.method.assert_called_with(1, data=2)
-
     assert ee.listener_count("event") == 1
     assert mock.method is ee.listeners("event")[0]
 
 
 def test_on_emits_error_when_listening_for_errors(
-    ee: EventEmitter, error_helper
+    ee: EventEmitter, error_helper: "EEExceptionHelper"
 ) -> None:
     ee.on("event", error_helper.error_raiser)
     ee.on("error", error_helper.error_listener)
@@ -31,7 +79,7 @@ def test_on_emits_error_when_listening_for_errors(
 
 
 def test_on_does_not_emits_error_when_not_listening_for_errors(
-    ee: EventEmitter, error_helper
+    ee: EventEmitter, error_helper: "EEExceptionHelper"
 ) -> None:
     ee.on("event", error_helper.error_raiser)
     assert ee.listener_count("event") == 1
@@ -47,17 +95,14 @@ def test_on_decorator(ee: EventEmitter, mock: Mock) -> None:
 
     assert ee.listener_count("event") == 1
     assert handler is ee.listeners("event")[0]
-
     assert ee.emit("event", 1, data=2)
-
     mock.method.assert_called_with(1, data=2)
-
     assert ee.listener_count("event") == 1
     assert handler is ee.listeners("event")[0]
 
 
 def test_on_decorator_emits_error_when_listening_for_errors(
-    ee: EventEmitter, error_helper
+    ee: EventEmitter, error_helper: "EEExceptionHelper"
 ) -> None:
     @ee.on("event")
     def handler(*args, **kwargs) -> None:
@@ -74,7 +119,7 @@ def test_on_decorator_emits_error_when_listening_for_errors(
 
 
 def test_on_decorator_does_not_emits_error_when_not_listening_for_errors(
-    ee: EventEmitter, error_helper
+    ee: EventEmitter, error_helper: "EEExceptionHelper"
 ) -> None:
     @ee.on("event")
     def handler(*args, **kwargs) -> None:
@@ -91,18 +136,15 @@ def test_once(ee: EventEmitter, mock: Mock) -> None:
 
     assert ee.listener_count("event") == 1
     assert mock.method is ee.listeners("event")[0]
-
     assert ee.emit("event", 1, data=2)
     assert not ee.emit("event", 1, data=2)
-
     mock.method.assert_called_once_with(1, data=2)
-
     assert ee.listener_count("event") == 0
     assert mock.method not in ee.listeners("event")
 
 
 def test_once_emits_error_when_listening_for_errors(
-    ee: EventEmitter, error_helper
+    ee: EventEmitter, error_helper: "EEExceptionHelper"
 ) -> None:
     ee.once("event", error_helper.error_raiser)
     ee.once("error", error_helper.error_listener)
@@ -115,7 +157,7 @@ def test_once_emits_error_when_listening_for_errors(
 
 
 def test_once_does_not_emits_error_when_not_listening_for_errors(
-    ee: EventEmitter, error_helper
+    ee: EventEmitter, error_helper: "EEExceptionHelper"
 ) -> None:
     ee.once("event", error_helper.error_raiser)
     assert ee.listener_count("event") == 1
@@ -133,18 +175,15 @@ def test_once_decorator(ee: EventEmitter, mock: Mock) -> None:
 
     assert ee.listener_count("event") == 1
     assert handler is ee.listeners("event")[0]
-
     assert ee.emit("event", 1, data=2)
     assert not ee.emit("event", 1, data=2)
-
     mock.method.assert_called_once_with(1, data=2)
-
     assert ee.listener_count("event") == 0
     assert handler not in ee.listeners("event")
 
 
 def test_once_decorator_emits_error_when_listening_for_errors(
-    ee: EventEmitter, error_helper
+    ee: EventEmitter, error_helper: "EEExceptionHelper"
 ) -> None:
     @ee.once("event")
     def handler(*args, **kwargs) -> None:
@@ -163,7 +202,7 @@ def test_once_decorator_emits_error_when_listening_for_errors(
 
 
 def test_once_decorator_does_not_emits_error_when_not_listening_for_errors(
-    ee: EventEmitter, error_helper
+    ee: EventEmitter, error_helper: "EEExceptionHelper"
 ) -> None:
     @ee.once("event")
     def handler(*args, **kwargs) -> None:
@@ -190,17 +229,17 @@ async def test_coroutine_listener(
     assert ee_with_event_loop.listener_count("event") == 1
     assert handler is ee_with_event_loop.listeners("event")[0]
     assert ee_with_event_loop.emit("event", 1, data=2)
-
     assert await deferred
     mock.method.assert_called_with(1, data=2)
-
     assert ee_with_event_loop.listener_count("event") == 1
     assert handler is ee_with_event_loop.listeners("event")[0]
 
 
 @pytest.mark.asyncio
 async def test_coroutine_listener_emits_error_when_listening_for_errors(
-    ee_with_event_loop: EventEmitter, error_helper, event_loop: AbstractEventLoop
+    ee_with_event_loop: EventEmitter,
+    error_helper: "EEExceptionHelper",
+    event_loop: AbstractEventLoop,
 ) -> None:
     error_helper.with_deferred(event_loop)
     ee_with_event_loop.on("event", error_helper.error_raiser_async)
@@ -213,7 +252,9 @@ async def test_coroutine_listener_emits_error_when_listening_for_errors(
 
 @pytest.mark.asyncio
 async def test_coroutine_listener_does_not_emits_error_when_not_listening_for_errors(
-    ee_with_event_loop: EventEmitter, error_helper, event_loop: AbstractEventLoop
+    ee_with_event_loop: EventEmitter,
+    error_helper: "EEExceptionHelper",
+    event_loop: AbstractEventLoop,
 ) -> None:
     error_helper.with_deferred(event_loop)
     ee_with_event_loop.on("event", error_helper.error_raiser_async)
@@ -235,17 +276,17 @@ async def test_coroutine_listener_decorator(
     assert ee_with_event_loop.listener_count("event") == 1
     assert handler is ee_with_event_loop.listeners("event")[0]
     assert ee_with_event_loop.emit("event", 1, data=2)
-
     assert await deferred
     mock.method.assert_called_with(1, data=2)
-
     assert ee_with_event_loop.listener_count("event") == 1
     assert handler is ee_with_event_loop.listeners("event")[0]
 
 
 @pytest.mark.asyncio
 async def test_coroutine_listener_decorator_emits_error_when_listening_for_errors(
-    ee_with_event_loop: EventEmitter, error_helper, event_loop: AbstractEventLoop
+    ee_with_event_loop: EventEmitter,
+    error_helper: "EEExceptionHelper",
+    event_loop: AbstractEventLoop,
 ) -> None:
     error_helper.with_deferred(event_loop)
 
@@ -267,7 +308,9 @@ async def test_coroutine_listener_decorator_emits_error_when_listening_for_error
 
 @pytest.mark.asyncio
 async def test_coroutine_listener_decorator_does_not_emits_error_when_not_listening_for_errors(
-    ee_with_event_loop: EventEmitter, error_helper, event_loop: AbstractEventLoop
+    ee_with_event_loop: EventEmitter,
+    error_helper: "EEExceptionHelper",
+    event_loop: AbstractEventLoop,
 ) -> None:
     error_helper.with_deferred(event_loop)
 
@@ -292,10 +335,8 @@ async def test_coroutine_listener_once(
     ee_with_event_loop.once("event", handler)
     assert ee_with_event_loop.listener_count("event") == 1
     assert handler is ee_with_event_loop.listeners("event")[0]
-
     assert ee_with_event_loop.emit("event", 1, data=2)
     assert await deferred
-
     assert not ee_with_event_loop.emit("event", 1, data=2)
     mock.method.assert_called_once_with(1, data=2)
     assert ee_with_event_loop.listener_count("event") == 0
@@ -313,9 +354,7 @@ async def test_coroutine_listener_once_decorator(
 
     assert ee_with_event_loop.listener_count("event") == 1
     assert handler is ee_with_event_loop.listeners("event")[0]
-
     assert ee_with_event_loop.emit("event", 1, data=2)
-
     assert await deferred
     assert not ee_with_event_loop.emit("event", 1, data=2)
     mock.method.assert_called_once_with(1, data=2)
@@ -325,7 +364,9 @@ async def test_coroutine_listener_once_decorator(
 
 @pytest.mark.asyncio
 async def test_coroutine_listener_once_decorator_emits_error_when_listening_for_errors(
-    ee_with_event_loop: EventEmitter, error_helper, event_loop: AbstractEventLoop
+    ee_with_event_loop: EventEmitter,
+    error_helper: "EEExceptionHelper",
+    event_loop: AbstractEventLoop,
 ) -> None:
     error_helper.with_deferred(event_loop)
 
@@ -347,7 +388,9 @@ async def test_coroutine_listener_once_decorator_emits_error_when_listening_for_
 
 @pytest.mark.asyncio
 async def test_coroutine_listener_once_decorator_does_not_emits_error_when_not_listening_for_errors(
-    ee_with_event_loop: EventEmitter, error_helper, event_loop: AbstractEventLoop
+    ee_with_event_loop: EventEmitter,
+    error_helper: "EEExceptionHelper",
+    event_loop: AbstractEventLoop,
 ) -> None:
     error_helper.with_deferred(event_loop)
 

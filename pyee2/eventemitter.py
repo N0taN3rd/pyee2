@@ -2,7 +2,7 @@ import asyncio
 from asyncio import AbstractEventLoop, Future, ensure_future as asyncio_ensure_future
 from collections import OrderedDict
 from inspect import isawaitable as inspect_isawaitable
-from typing import Dict, Callable, Any, Optional, List
+from typing import Any, Dict, Callable, Optional, List
 
 __all__ = ["EventEmitter"]
 
