@@ -1,7 +1,7 @@
 import asyncio
-import inspect
-from asyncio import AbstractEventLoop, Future
+from asyncio import AbstractEventLoop, Future, ensure_future as asyncio_ensure_future
 from collections import OrderedDict
+from inspect import isawaitable as inspect_isawaitable
 from typing import Dict, Callable, Any, Optional, List
 
 __all__ = ["EventEmitter"]
@@ -25,7 +25,7 @@ class EventEmitter(object):
         :param loop: Optional loop argument. Defaults to asyncio.get_event_loop()
         :type loop: AbstractEventLoop
         """
-        self.loop: AbstractEventLoop = loop if loop is not None else asyncio.get_event_loop()
+        self._loop: AbstractEventLoop = loop if loop is not None else asyncio.get_event_loop()
         self._events: Dict[str, Dict[Callable[..., Any], Callable[..., Any]]] = dict()
 
     def emit(self, event: str, *args: Any, **kwargs: Any) -> bool:
@@ -42,16 +42,19 @@ class EventEmitter(object):
         if listeners is None:
             return False
         listening_for_exceptions = "error" in self._events
+        self_loop = self._loop
+        self_maybe_emit_error = self._maybe_emit_error
+        self_emit = self.emit
         for f in list(listeners.values()):
             try:
                 result = f(*args, **kwargs)
-                if inspect.isawaitable(result):
-                    future = asyncio.ensure_future(result, loop=self.loop)
+                if inspect_isawaitable(result):
+                    future = asyncio_ensure_future(result, loop=self_loop)
                     if listening_for_exceptions:
-                        future.add_done_callback(self._maybe_emit_error)
+                        future.add_done_callback(self_maybe_emit_error)
             except Exception as e:
                 if listening_for_exceptions:
-                    self.emit("error", e)
+                    self_emit("error", e)
         return True
 
     def _maybe_emit_error(self, the_future: Future) -> None:
@@ -111,7 +114,7 @@ class EventEmitter(object):
         original_listener: Callable[..., Any],
         maybe_wrapped_listener: Callable[..., Any],
     ) -> None:
-        ldict = self._events.get(event)
+        ldict = self._events.get(event, None)
         if ldict is None:
             self._events[event] = ldict = OrderedDict()
         ldict[original_listener] = maybe_wrapped_listener
@@ -164,7 +167,7 @@ class EventEmitter(object):
         :param event: The event name
         :return: The number of listeners for the event
         """
-        listeners = self._events.get(event)
+        listeners = self._events.get(event, None)
         if listeners is None:
             return 0
         return len(listeners)

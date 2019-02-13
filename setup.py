@@ -1,7 +1,7 @@
 import sys
 import re
 from pathlib import Path
-from setuptools import setup
+from setuptools import setup, find_packages
 
 needs_pytest = {"pytest", "test", "ptr"}.intersection(sys.argv)
 pytest_runner = ["pytest-runner"] if needs_pytest else []
@@ -21,12 +21,14 @@ def find_version():
 setup(
     name="pyee2",
     version=find_version(),
-    packages=['pyee2'],
+    packages=find_packages(exclude=['tests']),
     license="MIT",
     author="John Berlin",
     author_email="n0tan3rd@gmail.com",
+    url="https://github.com/N0taN3rd/pyee2",
     description="A port of node.js's primus/eventemitter3 to python. Based on jfhbrook/pyee.",
-    long_description=Path(__file__).parent.joinpath("README.rst").read_text(),
+    long_description=Path(__file__).parent.joinpath("README.md").read_text(),
+    long_description_content_type='text/markdown',
     include_package_data=True,
     setup_requires=pytest_runner,
     tests_require=["pytest", "pytest-asyncio", "mock"],
@@ -40,6 +42,7 @@ setup(
         "Programming Language :: Python",
         "Programming Language :: Python :: 3.5",
         "Programming Language :: Python :: 3.6",
+        "Programming Language :: Python :: 3.7",
         "Topic :: Other/Nonlisted Topic",
     ],
     python_requires=">= 3.5",
