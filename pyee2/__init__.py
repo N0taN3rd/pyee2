@@ -1,4 +1,5 @@
 from .eventemitter import EventEmitter
+from .eventemitterS import EventEmitterS
 
-__all__ = ["EventEmitter"]
-__version__ = "1.0.0"
+__all__ = ["EventEmitter", "EventEmitterS"]
+__version__ = "2.0.0"

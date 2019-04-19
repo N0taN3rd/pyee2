@@ -2,11 +2,12 @@ pyee2
 ==========================================================
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/ambv/black)
 
-pyee2 is the [primus/eventemitter3](https://github.com/primus/eventemitter3) EventEmitter implementation ported to python based on [jfhbrook/pyee](https://github.com/jfhbrook/pyee).
+pyee2 is the [primus/eventemitter3](https://github.com/primus/eventemitter3) EventEmitter implementation ported to python with inspiration from [jfhbrook/pyee](https://github.com/jfhbrook/pyee).
 
 pyee2:
  - Does not raise or emit an error event when your listener raises an error and no one is listening for the "error" event.
    That is to say pyee2 catches all errors raised by event listeners and only emits an error if there are listeners for the "error" event.
+ - The only time an exception is raised from an "emit" function is if `EventEmitter.raising_emit` is used to emit the event.
  - Does not not emit an event when a new listener is added or removed.
  - Only supports function or functions that return awaitables (coroutine, future, task) as event listeners.
    The test for awaitableness is done via "inspect.isawaitable"

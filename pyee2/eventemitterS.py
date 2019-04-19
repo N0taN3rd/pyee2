@@ -4,27 +4,16 @@ from functools import partial
 from inspect import isawaitable
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
-__all__ = ["EventEmitter"]
+__all__ = ["EventEmitterS"]
 
 
-class EventEmitter:
-    """EventEmitter implementation like primus/eventemitter3 (Nodejs).
+class EventEmitterS:
+    """Exactly the same class as EventEmitter except it is slotted"""
 
-    We do not raise or emit an error event when your listener raises an error
-    and no one is listening for the "error" event; that is to say
-    we swallow (catch) all errors raised.
-
-    The only time an exception is raised while emitting an event is
-    if raising_emit is used to emit the event.
-
-    We also do not emit an event when a new listener is added.
-    Only supports regular function or functions that return awaitables
-    (coroutine, future, task) event listeners.
-    The test for awaitableness is done via "inspect.isawaitable"
-    """
+    __slots__ = ["_loop", "__events"]
 
     def __init__(self, loop: Optional[AbstractEventLoop] = None) -> None:
-        """Initialize a new EventEmitter.
+        """Initialize a new EventEmitterS.
 
         :param loop: Optional loop argument. Defaults to asyncio.get_event_loop()
         :type loop: AbstractEventLoop

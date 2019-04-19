@@ -31,7 +31,7 @@ setup(
     long_description_content_type='text/markdown',
     include_package_data=True,
     setup_requires=pytest_runner,
-    tests_require=["pytest", "pytest-asyncio", "mock"],
+    tests_require=["pytest", "pytest-asyncio", "mock", "uvloop"],
     keywords=["events", "emitter", "node.js", "node", "eventemitter", "eventemitter3"],
     classifiers=[
         "Programming Language :: Python",

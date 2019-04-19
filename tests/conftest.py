@@ -1,15 +1,25 @@
-from asyncio import AbstractEventLoop, Future, gather
+from asyncio import AbstractEventLoop, Future, gather, set_event_loop_policy
 from typing import Any, Callable, Optional
 
 import pytest
 from mock import Mock
+import uvloop
+from pyee2 import EventEmitter, EventEmitterS
 
-from pyee2 import EventEmitter
+try:
+    uvloop.install()
+except Exception:
+    set_event_loop_policy(uvloop.EventLoopPolicy())
 
 
 @pytest.fixture
 def ee() -> EventEmitter:
     return EventEmitter()
+
+
+@pytest.fixture
+def ees() -> EventEmitterS:
+    return EventEmitterS()
 
 
 @pytest.fixture
@@ -20,6 +30,11 @@ def mock() -> Mock:
 @pytest.fixture
 def ee_with_event_loop(event_loop: AbstractEventLoop) -> EventEmitter:
     return EventEmitter(loop=event_loop)
+
+
+@pytest.fixture
+def ees_with_event_loop(event_loop: AbstractEventLoop) -> EventEmitterS:
+    return EventEmitterS(loop=event_loop)
 
 
 @pytest.fixture
